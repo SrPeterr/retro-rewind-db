@@ -11,6 +11,7 @@ const JSON_URL    = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/vhs.json`;
 let db           = [];
 let currentStars = 0;
 let limitedOn    = false;
+let queue        = [];   // tapes waiting to be submitted
 
 // ── Data Loading ──────────────────────────────────────────────
 async function load() {
@@ -23,11 +24,7 @@ async function load() {
 
   const params   = new URLSearchParams(window.location.search);
   const skuParam = params.get('sku');
-  if (skuParam) {
-    showDetailView(skuParam);
-  } else {
-    showGridView();
-  }
+  skuParam ? showDetailView(skuParam) : showGridView();
 }
 
 // ── Detail View ───────────────────────────────────────────────
@@ -178,15 +175,9 @@ function getFiltered() {
 
 // ── Modal ─────────────────────────────────────────────────────
 function openModal() {
-  document.getElementById('f-name').value  = '';
-  document.getElementById('f-sku').value   = '';
-  document.getElementById('f-genre').value = '';
-  document.getElementById('f-stars').value = 0;
-  currentStars = 0;
-  limitedOn    = false;
-  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('toggle-limited').classList.remove('on');
-  document.getElementById('toggle-label').textContent = 'NO';
+  queue = [];
+  resetForm();
+  renderQueue();
   document.getElementById('modal').classList.add('open');
 }
 
@@ -196,6 +187,18 @@ function closeModal() {
 
 function handleOverlayClick(e) {
   if (e.target === document.getElementById('modal')) closeModal();
+}
+
+function resetForm() {
+  document.getElementById('f-name').value  = '';
+  document.getElementById('f-sku').value   = '';
+  document.getElementById('f-genre').value = '';
+  document.getElementById('f-stars').value = 0;
+  currentStars = 0;
+  limitedOn    = false;
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('toggle-limited').classList.remove('on');
+  document.getElementById('toggle-label').textContent = 'NO';
 }
 
 function setStar(v) {
@@ -209,11 +212,11 @@ function setStar(v) {
 function toggleLimited() {
   limitedOn = !limitedOn;
   document.getElementById('toggle-limited').classList.toggle('on', limitedOn);
-  document.getElementById('toggle-label').textContent = limitedOn ? 'YES — LIMITED EDITION' : 'NO';
+  document.getElementById('toggle-label').textContent = limitedOn ? 'YES' : 'NO';
 }
 
-// ── Suggest: download JSON ────────────────────────────────────
-function submitSuggestion() {
+// ── Queue ─────────────────────────────────────────────────────
+function addToQueue() {
   const name = document.getElementById('f-name').value.trim();
   const sku  = document.getElementById('f-sku').value.trim();
 
@@ -222,27 +225,87 @@ function submitSuggestion() {
     return;
   }
 
-  const entry = {
+  queue.push({
     name,
     sku,
     genre:   document.getElementById('f-genre').value || null,
     stars:   currentStars || null,
     limited: limitedOn
-  };
+  });
 
-  // Remove null fields for a clean JSON
-  Object.keys(entry).forEach(k => entry[k] === null && delete entry[k]);
+  resetForm();
+  renderQueue();
+  document.getElementById('f-name').focus();
+  showToast(`✔ "${name}" ADDED — KEEP GOING OR SUBMIT`);
+}
 
-  const blob = new Blob([JSON.stringify(entry, null, 2)], { type: 'application/json' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `vhs-${sku}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+function removeFromQueue(index) {
+  queue.splice(index, 1);
+  renderQueue();
+}
+
+function renderQueue() {
+  const section = document.getElementById('queue-section');
+  const list    = document.getElementById('queue-list');
+  const count   = document.getElementById('queue-count');
+  const btn     = document.getElementById('submit-btn');
+
+  if (!queue.length) {
+    section.style.display = 'none';
+    btn.disabled = true;
+    return;
+  }
+
+  section.style.display = 'block';
+  btn.disabled = false;
+  count.textContent = queue.length;
+
+  list.innerHTML = queue.map((t, i) => `
+    <div class="queue-item">
+      <div class="queue-item-info">
+        <span class="queue-item-name">${esc(t.name)}</span>
+        <span class="queue-item-sku">${esc(t.sku)}</span>
+        ${t.genre  ? `<span class="tag tag-genre" style="font-size:13px">${esc(t.genre)}</span>` : ''}
+        ${t.stars  ? `<span class="queue-stars">${'★'.repeat(t.stars)}</span>` : ''}
+        ${t.limited ? '<span class="limited-badge" style="font-size:12px">★ LIMITED</span>' : ''}
+      </div>
+      <button class="queue-remove" onclick="removeFromQueue(${i})" title="Remove">✕</button>
+    </div>
+  `).join('');
+}
+
+// ── Submit to GitHub Issue ────────────────────────────────────
+function submitToGitHub() {
+  if (!queue.length) return;
+
+  // Build a clean Markdown table for the issue body
+  const rows = queue.map(t =>
+    `| ${t.name} | ${t.sku} | ${t.genre || '—'} | ${'★'.repeat(t.stars || 0) || '—'} | ${t.limited ? 'Yes' : 'No'} |`
+  ).join('\n');
+
+  const body = encodeURIComponent(
+`## VHS Suggestions
+
+| Name | SKU | Genre | Score | Limited |
+|------|-----|-------|-------|---------|
+${rows}
+
+---
+*Submitted via [REWIND VHS Database](https://${GITHUB_USER}.github.io/${GITHUB_REPO})*`
+  );
+
+  const count = queue.length;
+  const title = encodeURIComponent(
+    count === 1
+      ? `[VHS] ${queue[0].name} (${queue[0].sku})`
+      : `[VHS] ${count} new tape suggestions`
+  );
+
+  const url = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/issues/new?title=${title}&body=${body}&labels=vhs-submission`;
+  window.open(url, '_blank');
 
   closeModal();
-  showToast('✔ JSON DOWNLOADED — SEND IT TO THE ADMIN!');
+  showToast(`✔ ISSUE OPENED WITH ${count} TAPE${count !== 1 ? 'S' : ''}`);
 }
 
 // ── Utilities ─────────────────────────────────────────────────
