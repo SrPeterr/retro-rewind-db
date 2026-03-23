@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Example: Night Crawlers",
+    "sku": "VHS-0001",
+    "genre": "Horror",
+    "rating": "R",
+    "stars": 4,
+    "limited": false,
+    "review": "Classic creature feature. Must-rent on a Friday night."
+  }
+]
