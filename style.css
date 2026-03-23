@@ -803,3 +803,16 @@ textarea:focus {
   text-align: center;
   padding: 80px 24px;
 }
+
+/* ── Modal hint ──────────────────────────────────────────────── */
+.modal-hint {
+  font-family: 'VT323', monospace;
+  font-size: 17px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  padding: 10px 14px;
+  border-left: 2px solid var(--neon-yellow);
+  background: rgba(255, 214, 0, 0.04);
+}

@@ -8,7 +8,9 @@ const GITHUB_REPO = 'retro-rewind-db';
 const JSON_URL    = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/vhs.json`;
 
 // ── State ─────────────────────────────────────────────────────
-let db = [];
+let db           = [];
+let currentStars = 0;
+let limitedOn    = false;
 
 // ── Data Loading ──────────────────────────────────────────────
 async function load() {
@@ -19,8 +21,7 @@ async function load() {
     db = [];
   }
 
-  // Check for ?sku= param — show detail view instead of grid
-  const params = new URLSearchParams(window.location.search);
+  const params   = new URLSearchParams(window.location.search);
   const skuParam = params.get('sku');
   if (skuParam) {
     showDetailView(skuParam);
@@ -33,7 +34,7 @@ async function load() {
 function showDetailView(sku) {
   const tape = db.find(t => t.sku === sku);
 
-  document.getElementById('grid-view').style.display  = 'none';
+  document.getElementById('grid-view').style.display   = 'none';
   document.getElementById('detail-view').style.display = 'block';
 
   const el = document.getElementById('detail-content');
@@ -57,19 +58,16 @@ function showDetailView(sku) {
           <h2 class="detail-name">${esc(tape.name)}</h2>
           ${tape.limited ? '<span class="limited-badge">★ LIMITED EDITION</span>' : ''}
         </div>
-
         <div class="detail-sku-row">
           <button class="detail-sku sku-copy" onclick="copySKU('${esc(tape.sku)}')" title="Click to copy SKU">
             ${esc(tape.sku)} ⎘
           </button>
           <span class="detail-sku-hint">CLICK TO COPY</span>
         </div>
-
         <div class="detail-meta">
           ${tape.genre ? `<span class="tag tag-genre">${esc(tape.genre)}</span>` : ''}
           ${tape.stars ? `<span class="detail-stars">${starsHtml(tape.stars)}</span>` : ''}
         </div>
-
         <div class="detail-share">
           <button class="btn btn-ghost" onclick="copyShareLink('${esc(tape.sku)}')">⎘ SHARE THIS TAPE</button>
         </div>
@@ -145,21 +143,14 @@ function updateStats() {
 
 // ── Navigation ────────────────────────────────────────────────
 function goToDetail(sku) {
-  const url = `${window.location.pathname}?sku=${encodeURIComponent(sku)}`;
-  window.history.pushState({}, '', url);
+  window.history.pushState({}, '', `${window.location.pathname}?sku=${encodeURIComponent(sku)}`);
   showDetailView(sku);
   window.scrollTo(0, 0);
 }
 
-// Handle browser back/forward
 window.addEventListener('popstate', () => {
-  const params = new URLSearchParams(window.location.search);
-  const sku = params.get('sku');
-  if (sku) {
-    showDetailView(sku);
-  } else {
-    showGridView();
-  }
+  const sku = new URLSearchParams(window.location.search).get('sku');
+  sku ? showDetailView(sku) : showGridView();
   window.scrollTo(0, 0);
 });
 
@@ -183,6 +174,75 @@ function getFiltered() {
   else if (sort === 'rating-stars') list.sort((a, b) => (b.stars || 0) - (a.stars || 0));
 
   return list;
+}
+
+// ── Modal ─────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('f-name').value  = '';
+  document.getElementById('f-sku').value   = '';
+  document.getElementById('f-genre').value = '';
+  document.getElementById('f-stars').value = 0;
+  currentStars = 0;
+  limitedOn    = false;
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('toggle-limited').classList.remove('on');
+  document.getElementById('toggle-label').textContent = 'NO';
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modal')) closeModal();
+}
+
+function setStar(v) {
+  currentStars = currentStars === v ? 0 : v;
+  document.getElementById('f-stars').value = currentStars;
+  document.querySelectorAll('.star-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.v) <= currentStars);
+  });
+}
+
+function toggleLimited() {
+  limitedOn = !limitedOn;
+  document.getElementById('toggle-limited').classList.toggle('on', limitedOn);
+  document.getElementById('toggle-label').textContent = limitedOn ? 'YES — LIMITED EDITION' : 'NO';
+}
+
+// ── Suggest: download JSON ────────────────────────────────────
+function submitSuggestion() {
+  const name = document.getElementById('f-name').value.trim();
+  const sku  = document.getElementById('f-sku').value.trim();
+
+  if (!name || !sku) {
+    showToast('NAME & SKU ARE REQUIRED', true);
+    return;
+  }
+
+  const entry = {
+    name,
+    sku,
+    genre:   document.getElementById('f-genre').value || null,
+    stars:   currentStars || null,
+    limited: limitedOn
+  };
+
+  // Remove null fields for a clean JSON
+  Object.keys(entry).forEach(k => entry[k] === null && delete entry[k]);
+
+  const blob = new Blob([JSON.stringify(entry, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `vhs-${sku}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  closeModal();
+  showToast('✔ JSON DOWNLOADED — SEND IT TO THE ADMIN!');
 }
 
 // ── Utilities ─────────────────────────────────────────────────

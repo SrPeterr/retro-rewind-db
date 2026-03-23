@@ -49,6 +49,7 @@
         <option value="yes">★ LIMITED ONLY</option>
         <option value="no">STANDARD ONLY</option>
       </select>
+      <button class="btn btn-primary" onclick="openModal()">+ SUGGEST VHS</button>
     </div>
 
     <div class="grid-header">
@@ -83,6 +84,71 @@
   REWIND — COMMUNITY VHS DATABASE &nbsp;·&nbsp; FOR
   <a href="https://store.steampowered.com/app/3552140/Retro_Rewind__Video_Store_Simulator/" target="_blank">RETRO REWIND</a>
 </footer>
+
+<!-- SUGGEST MODAL -->
+<div class="modal-overlay" id="modal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">SUGGEST A VHS TAPE</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-hint">Fill in what you know. Your suggestion will download as a JSON file — send it to the admin to get it added.</p>
+
+      <div class="form-group">
+        <label class="form-label">NAME <span>*</span></label>
+        <input type="text" id="f-name" placeholder="e.g. Night of the Living Dead">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SKU <span>*</span></label>
+        <input type="text" id="f-sku" placeholder="e.g. 1051913">
+      </div>
+      <div class="form-group">
+        <label class="form-label">GENRE</label>
+        <select id="f-genre">
+          <option value="">— Select —</option>
+          <option>Action</option>
+          <option>Comedy</option>
+          <option>Drama</option>
+          <option>Horror</option>
+          <option>Sci-Fi</option>
+          <option>Thriller</option>
+          <option>Romance</option>
+          <option>Animation</option>
+          <option>Documentary</option>
+          <option>Adventure</option>
+          <option>Fantasy</option>
+          <option>Mystery</option>
+          <option>Western</option>
+          <option>Musical</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">YOUR SCORE</label>
+        <div class="rating-stars" id="star-picker">
+          <button class="star-btn" data-v="1" onclick="setStar(1)">★</button>
+          <button class="star-btn" data-v="2" onclick="setStar(2)">★</button>
+          <button class="star-btn" data-v="3" onclick="setStar(3)">★</button>
+          <button class="star-btn" data-v="4" onclick="setStar(4)">★</button>
+          <button class="star-btn" data-v="5" onclick="setStar(5)">★</button>
+        </div>
+        <input type="hidden" id="f-stars" value="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">LIMITED EDITION</label>
+        <div class="toggle-wrap">
+          <button class="toggle" id="toggle-limited" onclick="toggleLimited()"></button>
+          <span class="toggle-label" id="toggle-label">NO</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">CANCEL</button>
+      <button class="btn btn-primary" onclick="submitSuggestion()">⬇ DOWNLOAD SUGGESTION</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
