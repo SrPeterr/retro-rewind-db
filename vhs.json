@@ -1,11 +1,9 @@
 [
   {
-    "name": "Example: Night Crawlers",
-    "sku": "VHS-0001",
+    "name": "Fast Treasure Pursuit!",
+    "sku": "1051913",
     "genre": "Horror",
-    "rating": "R",
     "stars": 4,
-    "limited": false,
-    "review": "Classic creature feature. Must-rent on a Friday night."
+    "limited": false
   }
 ]
