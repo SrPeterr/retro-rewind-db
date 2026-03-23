@@ -7,22 +7,8 @@ const GITHUB_USER = 'SrPeterr';
 const GITHUB_REPO = 'retro-rewind-db';
 const JSON_URL    = `https://${GITHUB_USER}.github.io/${GITHUB_REPO}/vhs.json`;
 
-function buildIssueURL(data) {
-  const title = encodeURIComponent(`[VHS] ${data.name} · ${data.sku}`);
-  const body  = encodeURIComponent(
-`**Name:** ${data.name}
-**SKU:** ${data.sku}
-**Genre:** ${data.genre || '—'}
-**Score:** ${'★'.repeat(data.stars || 0) || '—'}
-**Limited Edition:** ${data.limited ? 'Yes' : 'No'}`
-  );
-  return `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/issues/new?title=${title}&body=${body}&labels=vhs-submission`;
-}
-
 // ── State ─────────────────────────────────────────────────────
-let db           = [];
-let currentStars = 0;
-let limitedOn    = false;
+let db = [];
 
 // ── Data Loading ──────────────────────────────────────────────
 async function load() {
@@ -32,8 +18,74 @@ async function load() {
   } catch (e) {
     db = [];
   }
+
+  // Check for ?sku= param — show detail view instead of grid
+  const params = new URLSearchParams(window.location.search);
+  const skuParam = params.get('sku');
+  if (skuParam) {
+    showDetailView(skuParam);
+  } else {
+    showGridView();
+  }
+}
+
+// ── Detail View ───────────────────────────────────────────────
+function showDetailView(sku) {
+  const tape = db.find(t => t.sku === sku);
+
+  document.getElementById('grid-view').style.display  = 'none';
+  document.getElementById('detail-view').style.display = 'block';
+
+  const el = document.getElementById('detail-content');
+
+  if (!tape) {
+    el.innerHTML = `
+      <div class="detail-not-found">
+        <p class="empty-title">TAPE NOT FOUND</p>
+        <p class="empty-sub">SKU ${esc(sku)} DOES NOT EXIST IN THE DATABASE</p>
+        <a href="${baseURL()}" class="btn btn-primary" style="display:inline-block;margin-top:24px;text-decoration:none">← BACK TO CATALOG</a>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <a href="${baseURL()}" class="detail-back">← BACK TO CATALOG</a>
+    <div class="detail-card ${tape.limited ? 'limited' : ''}">
+      <div class="card-tape ${tape.limited ? 'limited' : ''}"></div>
+      <div class="detail-body">
+        <div class="detail-header-row">
+          <h2 class="detail-name">${esc(tape.name)}</h2>
+          ${tape.limited ? '<span class="limited-badge">★ LIMITED EDITION</span>' : ''}
+        </div>
+
+        <div class="detail-sku-row">
+          <button class="detail-sku sku-copy" onclick="copySKU('${esc(tape.sku)}')" title="Click to copy SKU">
+            ${esc(tape.sku)} ⎘
+          </button>
+          <span class="detail-sku-hint">CLICK TO COPY</span>
+        </div>
+
+        <div class="detail-meta">
+          ${tape.genre ? `<span class="tag tag-genre">${esc(tape.genre)}</span>` : ''}
+          ${tape.stars ? `<span class="detail-stars">${starsHtml(tape.stars)}</span>` : ''}
+        </div>
+
+        <div class="detail-share">
+          <button class="btn btn-ghost" onclick="copyShareLink('${esc(tape.sku)}')">⎘ SHARE THIS TAPE</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function showGridView() {
+  document.getElementById('grid-view').style.display   = 'block';
+  document.getElementById('detail-view').style.display = 'none';
   renderGrid();
   updateStats();
+}
+
+function baseURL() {
+  return window.location.pathname;
 }
 
 // ── Rendering ─────────────────────────────────────────────────
@@ -49,20 +101,20 @@ function renderGrid() {
       <div class="empty-state">
         <div class="empty-vhs"></div>
         <p class="empty-title">${db.length ? 'NO RESULTS' : 'NO TAPES YET'}</p>
-        <p class="empty-sub">${db.length ? 'TRY ADJUSTING YOUR FILTERS' : 'BE THE FIRST TO SUBMIT A VHS'}</p>
+        <p class="empty-sub">${db.length ? 'TRY ADJUSTING YOUR FILTERS' : 'NO TAPES IN THE DATABASE YET'}</p>
       </div>`;
     return;
   }
 
   grid.innerHTML = list.map(t => `
-    <div class="vhs-card ${t.limited ? 'limited' : ''}">
+    <div class="vhs-card ${t.limited ? 'limited' : ''}" onclick="goToDetail('${esc(t.sku)}')" style="cursor:pointer">
       <div class="card-tape ${t.limited ? 'limited' : ''}"></div>
       <div class="card-body">
         <div class="card-header-row">
           <span class="card-name">${esc(t.name)}</span>
           ${t.limited ? '<span class="limited-badge">★ LIMITED</span>' : ''}
         </div>
-        <button class="card-sku sku-copy" onclick="copySKU('${esc(t.sku)}')" title="Click to copy SKU">
+        <button class="card-sku sku-copy" onclick="event.stopPropagation(); copySKU('${esc(t.sku)}')" title="Click to copy SKU">
           ${esc(t.sku)} ⎘
         </button>
         <div class="card-meta">
@@ -83,7 +135,6 @@ function updateStats() {
   document.getElementById('stat-limited').textContent = `★ ${limited} LIMITED`;
   document.getElementById('stat-genres').textContent  = `◈ ${genres} GENRE${genres !== 1 ? 'S' : ''}`;
 
-  // Rebuild genre filter options from current data
   const genreSelect = document.getElementById('filter-genre');
   const current     = genreSelect.value;
   const allGenres   = [...new Set(db.map(t => t.genre).filter(Boolean))].sort();
@@ -91,6 +142,26 @@ function updateStats() {
   genreSelect.innerHTML = '<option value="">ALL GENRES</option>' +
     allGenres.map(g => `<option ${g === current ? 'selected' : ''}>${g}</option>`).join('');
 }
+
+// ── Navigation ────────────────────────────────────────────────
+function goToDetail(sku) {
+  const url = `${window.location.pathname}?sku=${encodeURIComponent(sku)}`;
+  window.history.pushState({}, '', url);
+  showDetailView(sku);
+  window.scrollTo(0, 0);
+}
+
+// Handle browser back/forward
+window.addEventListener('popstate', () => {
+  const params = new URLSearchParams(window.location.search);
+  const sku = params.get('sku');
+  if (sku) {
+    showDetailView(sku);
+  } else {
+    showGridView();
+  }
+  window.scrollTo(0, 0);
+});
 
 // ── Filtering & Sorting ───────────────────────────────────────
 function getFiltered() {
@@ -114,67 +185,6 @@ function getFiltered() {
   return list;
 }
 
-// ── Modal ─────────────────────────────────────────────────────
-function openModal() {
-  document.getElementById('f-name').value  = '';
-  document.getElementById('f-sku').value   = '';
-  document.getElementById('f-genre').value = '';
-  document.getElementById('f-stars').value = 0;
-
-  currentStars = 0;
-  limitedOn    = false;
-
-  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('toggle-limited').classList.remove('on');
-  document.getElementById('toggle-label').textContent = 'NO';
-  document.getElementById('modal').classList.add('open');
-}
-
-function closeModal() {
-  document.getElementById('modal').classList.remove('open');
-}
-
-function handleOverlayClick(e) {
-  if (e.target === document.getElementById('modal')) closeModal();
-}
-
-// ── Form Actions ──────────────────────────────────────────────
-function saveTape() {
-  const name = document.getElementById('f-name').value.trim();
-  const sku  = document.getElementById('f-sku').value.trim();
-
-  if (!name || !sku) {
-    showToast('NAME & SKU ARE REQUIRED', true);
-    return;
-  }
-
-  const data = {
-    name,
-    sku,
-    genre:   document.getElementById('f-genre').value || '',
-    stars:   currentStars,
-    limited: limitedOn
-  };
-
-  window.open(buildIssueURL(data), '_blank');
-  closeModal();
-  showToast('✔ GITHUB ISSUE OPENED — THANKS!');
-}
-
-function setStar(v) {
-  currentStars = currentStars === v ? 0 : v;
-  document.getElementById('f-stars').value = currentStars;
-  document.querySelectorAll('.star-btn').forEach(b => {
-    b.classList.toggle('active', parseInt(b.dataset.v) <= currentStars);
-  });
-}
-
-function toggleLimited() {
-  limitedOn = !limitedOn;
-  document.getElementById('toggle-limited').classList.toggle('on', limitedOn);
-  document.getElementById('toggle-label').textContent = limitedOn ? 'YES — LIMITED EDITION' : 'NO';
-}
-
 // ── Utilities ─────────────────────────────────────────────────
 async function copySKU(sku) {
   try {
@@ -182,6 +192,16 @@ async function copySKU(sku) {
     showToast('✔ SKU COPIED: ' + sku);
   } catch {
     showToast('SKU: ' + sku);
+  }
+}
+
+async function copyShareLink(sku) {
+  const url = `${window.location.origin}${window.location.pathname}?sku=${encodeURIComponent(sku)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('✔ LINK COPIED');
+  } catch {
+    showToast(url);
   }
 }
 

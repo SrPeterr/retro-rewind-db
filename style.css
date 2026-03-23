@@ -685,3 +685,121 @@ textarea:focus {
   .logo-text h1 { font-size: 40px; }
   .vhs-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Detail View ─────────────────────────────────────────────── */
+.logo-link {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  text-decoration: none;
+}
+
+.detail-back {
+  display: inline-block;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-decoration: none;
+  margin-bottom: 32px;
+  transition: color 0.15s;
+}
+
+.detail-back:hover { color: var(--neon-blue); }
+
+.detail-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 600px;
+  margin: 0 auto;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.detail-card:hover {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 30px rgba(0, 212, 255, 0.12);
+}
+
+.detail-card.limited { border-color: var(--neon-pink); }
+.detail-card.limited:hover {
+  border-color: var(--neon-pink);
+  box-shadow: 0 0 30px rgba(255, 45, 120, 0.15);
+}
+
+.detail-body { padding: 32px; }
+
+.detail-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.detail-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 40px;
+  letter-spacing: 3px;
+  color: var(--text);
+  line-height: 1.1;
+  flex: 1;
+}
+
+.detail-sku-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.detail-sku {
+  font-family: 'VT323', monospace;
+  font-size: 32px;
+  color: var(--neon-blue);
+  letter-spacing: 4px;
+  background: none;
+  border: 1px dashed rgba(0, 212, 255, 0.4);
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 4px 16px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.detail-sku:hover {
+  border-color: var(--neon-blue);
+  background: rgba(0, 212, 255, 0.07);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
+}
+
+.detail-sku-hint {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+}
+
+.detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 32px;
+}
+
+.detail-stars {
+  color: var(--neon-yellow);
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+
+.detail-share {
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.detail-not-found {
+  text-align: center;
+  padding: 80px 24px;
+}
