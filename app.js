@@ -374,12 +374,12 @@ function cropZone(file, zone) {
         sw = Math.floor(img.width  * 0.45);
         sh = Math.floor(img.height * 0.72);
       } else {
-        // Bottom bar — last ~12% of height, full width
-        // This is the black strip: "GALACTIC REBELLION · MOVIE · SCIENCE FICTION"
+        // Bottom bar — last ~15% of height, full width
+        // Black strip with white text: "GALACTIC REBELLION / MOVIE / SCIENCE FICTION"
         sx = 0;
-        sy = Math.floor(img.height * 0.86);
+        sy = Math.floor(img.height * 0.83);
         sw = img.width;
-        sh = Math.floor(img.height * 0.14);
+        sh = Math.floor(img.height * 0.17);
       }
 
       // Scale up 3x for better Tesseract accuracy
@@ -387,16 +387,31 @@ function cropZone(file, zone) {
       canvas.height = sh * 3;
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw * 3, sh * 3);
 
-      // Threshold: bright text on dark bg → pure black/white
-      const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d  = id.data;
-      const threshold = zone === 'title' ? 80 : 100;
-      for (let i = 0; i < d.length; i += 4) {
-        const grey = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        const val  = grey > threshold ? 255 : 0;
-        d[i] = d[i+1] = d[i+2] = val;
+      // For title bar: no binarization — keep greyscale so Tesseract handles it
+      // For stats panel: threshold to clean up the noisy game UI
+      if (zone === 'stats') {
+        const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d  = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const grey = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+          const val  = grey > 100 ? 255 : 0;
+          d[i] = d[i+1] = d[i+2] = val;
+        }
+        ctx.putImageData(id, 0, 0);
       }
-      ctx.putImageData(id, 0, 0);
+      // Title bar: just boost brightness/contrast a bit without hard threshold
+      else {
+        const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d  = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          // Boost contrast: stretch the range
+          d[i]   = Math.min(255, d[i]   * 1.8);
+          d[i+1] = Math.min(255, d[i+1] * 1.8);
+          d[i+2] = Math.min(255, d[i+2] * 1.8);
+        }
+        ctx.putImageData(id, 0, 0);
+      }
+
       canvas.toBlob(resolve, 'image/png');
     };
     img.src = URL.createObjectURL(file);
@@ -422,8 +437,11 @@ async function scanImage(input) {
 
     // 2. Bottom title bar: "GAME NAME · MOVIE · GENRE"
     const titleBlob = await cropZone(file, 'title');
+    // Debug: show the cropped title image in console so you can inspect it
+    const titleUrl = URL.createObjectURL(titleBlob);
+    console.log('[REWIND OCR] title crop preview:', titleUrl);
     const { data: { text: titleText } } = await worker.recognize(titleBlob);
-    console.log('[REWIND OCR] title bar:', titleText);
+    console.log('[REWIND OCR] title bar text:', titleText);
 
     const combined = statsText + '\n' + titleText;
 
