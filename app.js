@@ -236,7 +236,27 @@ const GENRE_MAP = {
   'musical':         'Musical',
 };
 
-function parseOCRText(text) {
+function parseOCRText(text, titleBarText) {
+  // Extract name from the bottom title bar first — it's the cleanest text
+  // Format: "GALACTIC REBELLION\nMOVIE  SCIENCE FICTION"  or "FAMILY ROBOTS\nMOVIE  SCIENCE FICTION"
+  if (titleBarText) {
+    const titleLines = titleBarText.split('\n').map(l => l.trim()).filter(Boolean);
+    // The name is always the first non-empty line that isn't "MOVIE" or a genre
+    for (const line of titleLines) {
+      const lower = line.toLowerCase();
+      const isGenreOrType = lower === 'movie' || lower === 'series' || lower === 'documentary'
+        || Object.values(GENRE_MAP).map(v => v.toLowerCase()).includes(lower)
+        || Object.keys(GENRE_MAP).includes(lower);
+      if (!isGenreOrType && line.length > 2 && /[A-Za-z]/.test(line)) {
+        // This is the name — convert from ALL CAPS to Title Case
+        return _parseStats(text, toTitleCase(line));
+      }
+    }
+  }
+  return _parseStats(text, '');
+}
+
+function _parseStats(text, nameOverride) {
   const result = { name: '', sku: '', genre: '', stars: 0, limited: false };
   const lines  = text.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -300,6 +320,7 @@ function parseOCRText(text) {
     result.name = toTitleCase(candidates[0]);
   }
 
+  if (nameOverride) result.name = nameOverride;
   return result;
 }
 
@@ -336,32 +357,46 @@ async function getTesseractWorker() {
   return _tesseractWorker;
 }
 
-// Preprocess image: crop the stats panel (top-left ~40% width, ~70% height),
-// then boost contrast so white/yellow text on dark bg is clean for OCR
-function preprocessImage(file) {
+// Crop and preprocess a zone of the image for OCR
+// zone: 'stats' = top-left panel, 'title' = bottom bar
+function cropZone(file, zone) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const canvas  = document.createElement('canvas');
-      // Crop: take left 45% width, top 75% height — where the stats box always is
-      const cropW = Math.floor(img.width  * 0.45);
-      const cropH = Math.floor(img.height * 0.75);
-      canvas.width  = cropW * 2;  // scale up 2x for better OCR
-      canvas.height = cropH * 2;
-      const ctx = canvas.getContext('2d');
-      // Scale up while cropping
-      ctx.drawImage(img, 0, 0, cropW, cropH, 0, 0, cropW * 2, cropH * 2);
-      // Boost contrast: get pixel data and increase contrast
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imageData.data;
+      const canvas = document.createElement('canvas');
+      const ctx    = canvas.getContext('2d');
+      let sx, sy, sw, sh;
+
+      if (zone === 'stats') {
+        // Top-left ~45% x 72% — the black stats panel
+        sx = 0;
+        sy = 0;
+        sw = Math.floor(img.width  * 0.45);
+        sh = Math.floor(img.height * 0.72);
+      } else {
+        // Bottom bar — last ~12% of height, full width
+        // This is the black strip: "GALACTIC REBELLION · MOVIE · SCIENCE FICTION"
+        sx = 0;
+        sy = Math.floor(img.height * 0.86);
+        sw = img.width;
+        sh = Math.floor(img.height * 0.14);
+      }
+
+      // Scale up 3x for better Tesseract accuracy
+      canvas.width  = sw * 3;
+      canvas.height = sh * 3;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw * 3, sh * 3);
+
+      // Threshold: bright text on dark bg → pure black/white
+      const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d  = id.data;
+      const threshold = zone === 'title' ? 80 : 100;
       for (let i = 0; i < d.length; i += 4) {
-        // Convert to greyscale first
         const grey = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        // Hard threshold: dark background → black, bright text → white
-        const val  = grey > 100 ? 255 : 0;
+        const val  = grey > threshold ? 255 : 0;
         d[i] = d[i+1] = d[i+2] = val;
       }
-      ctx.putImageData(imageData, 0, 0);
+      ctx.putImageData(id, 0, 0);
       canvas.toBlob(resolve, 'image/png');
     };
     img.src = URL.createObjectURL(file);
@@ -380,23 +415,25 @@ async function scanImage(input) {
     const worker = await getTesseractWorker();
     status.textContent = '⟳ SCANNING IMAGE...';
 
-    // Run OCR on the preprocessed (cropped + contrast boosted) image
-    const processed = await preprocessImage(file);
-    const { data: { text } } = await worker.recognize(processed);
+    // 1. Stats panel: SKU, genre, score, limited
+    const statsBlob = await cropZone(file, 'stats');
+    const { data: { text: statsText } } = await worker.recognize(statsBlob);
+    console.log('[REWIND OCR] stats:', statsText);
 
-    console.log('[REWIND OCR] raw text:', text); // debug
+    // 2. Bottom title bar: "GAME NAME · MOVIE · GENRE"
+    const titleBlob = await cropZone(file, 'title');
+    const { data: { text: titleText } } = await worker.recognize(titleBlob);
+    console.log('[REWIND OCR] title bar:', titleText);
 
-    if (!text || !text.trim()) {
+    const combined = statsText + '\n' + titleText;
+
+    if (!combined.trim()) {
       status.textContent = '✕ COULD NOT READ IMAGE — FILL MANUALLY';
       status.className   = 'scan-status error';
       return;
     }
 
-    // Also run on the original full image to catch the name from the card title
-    const { data: { text: fullText } } = await worker.recognize(file);
-    console.log('[REWIND OCR] full text:', fullText);
-
-    const data = parseOCRText(text + '\n' + fullText);
+    const data = parseOCRText(combined, titleText);
     fillFormFromScan(data);
 
     const found = [data.name && 'NAME', data.sku && 'SKU', data.genre && 'GENRE', data.stars && 'SCORE']
