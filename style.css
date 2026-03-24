@@ -930,3 +930,174 @@ textarea:focus {
 }
 
 .queue-remove:hover { color: var(--neon-pink); }
+
+/* ── Scan Zone ───────────────────────────────────────────────── */
+.scan-zone {
+  background: var(--surface2);
+  border: 1px dashed rgba(0, 212, 255, 0.3);
+  border-radius: 4px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.scan-label {
+  display: block;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  color: var(--neon-blue);
+  letter-spacing: 2px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: color 0.15s;
+}
+
+.scan-label:hover { color: #33ddff; }
+
+#scan-input {
+  width: auto;
+  font-size: 12px;
+  padding: 6px;
+  cursor: pointer;
+  margin: 0 auto 8px;
+  display: block;
+}
+
+.scan-hint {
+  font-family: 'VT323', monospace;
+  font-size: 15px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.scan-status {
+  font-family: 'VT323', monospace;
+  font-size: 17px;
+  letter-spacing: 1px;
+  min-height: 22px;
+}
+
+.scan-status.scanning { color: var(--neon-yellow); animation: blink 0.5s steps(1) infinite; }
+.scan-status.success  { color: var(--neon-green); }
+.scan-status.warning  { color: var(--neon-yellow); }
+.scan-status.error    { color: var(--neon-pink); }
+
+.form-divider {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  color: var(--text-muted);
+  letter-spacing: 3px;
+  text-align: center;
+  margin: 0 0 16px;
+}
+
+/* ── Suggest Modal — multi-tape queue ───────────────────────── */
+.suggest-form { margin-bottom: 24px; }
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.form-row .form-group { margin-bottom: 12px; }
+
+.btn-add {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 8px 18px;
+  background: transparent;
+  color: var(--neon-green);
+  border: 1px solid var(--neon-green);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.btn-add:hover {
+  background: rgba(0, 255, 136, 0.08);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+}
+
+.queue-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.queue-title {
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  color: var(--neon-yellow);
+  letter-spacing: 2px;
+}
+
+.queue-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--neon-yellow);
+  color: var(--bg);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+
+.queue-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.queue-item-name {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.queue-item-sku {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  color: var(--neon-blue);
+  letter-spacing: 2px;
+}
+
+.queue-stars { color: var(--neon-yellow); font-size: 13px; }
+
+.queue-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  border-radius: 2px;
+}
+
+.queue-remove:hover { color: var(--neon-pink); }

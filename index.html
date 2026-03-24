@@ -7,6 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=VT323&family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <!-- Puter.js — free OCR, no API key needed -->
+  <script src="https://js.puter.com/v2/"></script>
 </head>
 <body>
 
@@ -94,7 +96,19 @@
     </div>
     <div class="modal-body">
 
-      <!-- FORM: add one tape at a time to the queue -->
+      <!-- SCAN FROM IMAGE -->
+      <div class="scan-zone">
+        <label class="scan-label" for="scan-input">
+          📷 SCAN FROM SCREENSHOT
+        </label>
+        <input type="file" id="scan-input" accept="image/*" onchange="scanImage(this)">
+        <p class="scan-hint">Inspect a tape in-game and upload the screenshot — fields will fill automatically</p>
+        <p class="scan-status" id="scan-status"></p>
+      </div>
+
+      <div class="form-divider">— OR FILL MANUALLY —</div>
+
+      <!-- MANUAL FORM -->
       <div class="suggest-form">
         <div class="form-row">
           <div class="form-group" style="flex:2">
@@ -150,7 +164,7 @@
         <button class="btn btn-add" onclick="addToQueue()">+ ADD TO LIST</button>
       </div>
 
-      <!-- QUEUE: tapes pending submission -->
+      <!-- QUEUE -->
       <div id="queue-section" style="display:none">
         <div class="queue-header">
           <span class="queue-title">TAPES TO SUBMIT</span>
