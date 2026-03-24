@@ -305,17 +305,28 @@ function fillFormFromScan(data) {
   }
 }
 
+// Tesseract worker — created once and reused
+let _tesseractWorker = null;
+async function getTesseractWorker() {
+  if (!_tesseractWorker) {
+    _tesseractWorker = await Tesseract.createWorker('eng');
+  }
+  return _tesseractWorker;
+}
+
 async function scanImage(input) {
   const file = input.files[0];
   if (!file) return;
 
   const status = document.getElementById('scan-status');
-  status.textContent = '⟳ SCANNING...';
+  status.textContent = '⟳ LOADING OCR ENGINE...';
   status.className   = 'scan-status scanning';
 
   try {
-    // Puter.js OCR — free, no API key needed
-    const text = await puter.ai.img2txt(file);
+    // Tesseract.js — runs entirely in browser, no account, no server
+    const worker = await getTesseractWorker();
+    status.textContent = '⟳ SCANNING IMAGE...';
+    const { data: { text } } = await worker.recognize(file);
 
     if (!text || !text.trim()) {
       status.textContent = '✕ COULD NOT READ IMAGE — FILL MANUALLY';
