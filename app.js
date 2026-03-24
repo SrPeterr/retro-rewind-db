@@ -243,41 +243,61 @@ function parseOCRText(text) {
   for (const line of lines) {
     const lower = line.toLowerCase();
 
-    // SKU — 7-digit number after "SKU:" or standalone
-    const skuMatch = line.match(/SKU[:\s]+(\d{5,8})/i) || line.match(/^\s*(\d{7})\s*$/);
-    if (skuMatch) { result.sku = skuMatch[1]; continue; }
+    // SKU — any 4-8 digit number next to "SKU" label
+    const skuMatch = line.match(/SKU[:\s]+([\d]{4,8})/i)
+                  || line.match(/^([\d]{4,8})$/)           // standalone number line
+                  || line.match(/SKU.*?([\d]{4,8})/i);
+    if (skuMatch && !result.sku) { result.sku = skuMatch[1]; continue; }
 
-    // Review Score — count filled stars (★) or number like "3/5" or "3 out of 5"
-    if (lower.includes('review score') || lower.includes('score')) {
+    // Review Score — stars count or "X/5" pattern
+    if (lower.includes('review') || lower.includes('score')) {
       const starCount = (line.match(/★/g) || []).length;
-      if (starCount) { result.stars = starCount; continue; }
-      const numMatch = line.match(/(\d)[\/\s]?(?:out of\s*)?5/i);
+      if (starCount) { result.stars = Math.min(starCount, 5); continue; }
+      // Look for a digit 1-5 on the same line as "score"
+      const numMatch = line.match(/([1-5])\s*(?:\/\s*5)?/);
       if (numMatch) { result.stars = parseInt(numMatch[1]); continue; }
     }
 
-    // Print Rarity — Limited if not Common
-    if (lower.includes('print rarity')) {
+    // Print Rarity — Limited = not Common
+    if (lower.includes('rarity') || lower.includes('print')) {
       result.limited = !lower.includes('common');
       continue;
     }
 
-    // Genre — match against known genres
+    // Genre — match against known genres anywhere in the line
     for (const [key, val] of Object.entries(GENRE_MAP)) {
       if (lower.includes(key)) { result.genre = val; break; }
     }
   }
 
-  // Name — look for title case line near top that isn't a label
-  const labelWords = ['sku','score','rarity','value','rented','owned','copies','review','market','print','times'];
+  // SKU fallback: find any 4-8 digit standalone number if not found yet
+  if (!result.sku) {
+    for (const line of lines) {
+      const m = line.match(/^[^a-zA-Z]*([\d]{4,8})[^a-zA-Z]*$/);
+      if (m && parseInt(m[1]) > 999) { result.sku = m[1]; break; }
+    }
+  }
+
+  // Name — look for the longest clean alphabetic line that isn't a label
+  const labelWords = ['sku','score','rarity','value','rented','owned','copies','review',
+                      'market','print','times','close','inspect','copies','movie','good','critic'];
+  const candidates = [];
   for (const line of lines) {
     const lower = line.toLowerCase();
-    const isLabel = labelWords.some(w => lower.startsWith(w));
-    if (!isLabel && line.length > 2 && line.length < 60 && /[A-Za-z]/.test(line)) {
-      // Skip lines that are just numbers or single words that look like genre tags
-      if (!/^\d+$/.test(line) && !Object.keys(GENRE_MAP).includes(lower)) {
-        if (!result.name) result.name = toTitleCase(line);
-      }
+    const isLabel = labelWords.some(w => lower.includes(w));
+    const isNumber = /^[\d\s£$.,]+$/.test(line);
+    const isGenre  = Object.keys(GENRE_MAP).some(k => lower === k);
+    const isRoman  = /^(I{1,3}|IV|V?I{0,3}|VI{0,3}|IX|X{1,3})$/i.test(line.trim());
+    if (!isLabel && !isNumber && !isGenre && !isRoman && line.length > 2 && line.length < 80 && /[A-Za-z]{2,}/.test(line)) {
+      candidates.push(line);
     }
+  }
+  // Prefer lines with multiple words (likely the title)
+  const multiWord = candidates.filter(l => l.split(/\s+/).length >= 2);
+  if (multiWord.length) {
+    result.name = toTitleCase(multiWord[0]);
+  } else if (candidates.length) {
+    result.name = toTitleCase(candidates[0]);
   }
 
   return result;
@@ -309,9 +329,43 @@ function fillFormFromScan(data) {
 let _tesseractWorker = null;
 async function getTesseractWorker() {
   if (!_tesseractWorker) {
-    _tesseractWorker = await Tesseract.createWorker('eng');
+    _tesseractWorker = await Tesseract.createWorker('eng', 1, {
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 :.,!?\'-/'
+    });
   }
   return _tesseractWorker;
+}
+
+// Preprocess image: crop the stats panel (top-left ~40% width, ~70% height),
+// then boost contrast so white/yellow text on dark bg is clean for OCR
+function preprocessImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas  = document.createElement('canvas');
+      // Crop: take left 45% width, top 75% height — where the stats box always is
+      const cropW = Math.floor(img.width  * 0.45);
+      const cropH = Math.floor(img.height * 0.75);
+      canvas.width  = cropW * 2;  // scale up 2x for better OCR
+      canvas.height = cropH * 2;
+      const ctx = canvas.getContext('2d');
+      // Scale up while cropping
+      ctx.drawImage(img, 0, 0, cropW, cropH, 0, 0, cropW * 2, cropH * 2);
+      // Boost contrast: get pixel data and increase contrast
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Convert to greyscale first
+        const grey = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        // Hard threshold: dark background → black, bright text → white
+        const val  = grey > 100 ? 255 : 0;
+        d[i] = d[i+1] = d[i+2] = val;
+      }
+      ctx.putImageData(imageData, 0, 0);
+      canvas.toBlob(resolve, 'image/png');
+    };
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 async function scanImage(input) {
@@ -323,10 +377,14 @@ async function scanImage(input) {
   status.className   = 'scan-status scanning';
 
   try {
-    // Tesseract.js — runs entirely in browser, no account, no server
     const worker = await getTesseractWorker();
     status.textContent = '⟳ SCANNING IMAGE...';
-    const { data: { text } } = await worker.recognize(file);
+
+    // Run OCR on the preprocessed (cropped + contrast boosted) image
+    const processed = await preprocessImage(file);
+    const { data: { text } } = await worker.recognize(processed);
+
+    console.log('[REWIND OCR] raw text:', text); // debug
 
     if (!text || !text.trim()) {
       status.textContent = '✕ COULD NOT READ IMAGE — FILL MANUALLY';
@@ -334,7 +392,11 @@ async function scanImage(input) {
       return;
     }
 
-    const data = parseOCRText(text);
+    // Also run on the original full image to catch the name from the card title
+    const { data: { text: fullText } } = await worker.recognize(file);
+    console.log('[REWIND OCR] full text:', fullText);
+
+    const data = parseOCRText(text + '\n' + fullText);
     fillFormFromScan(data);
 
     const found = [data.name && 'NAME', data.sku && 'SKU', data.genre && 'GENRE', data.stars && 'SCORE']
